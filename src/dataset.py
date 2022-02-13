@@ -78,6 +78,10 @@ class ToTensor(object):
         return {'image': torch.from_numpy(image), 'tokens': torch.from_numpy(tokens)}
 
 
+def train_test_split(data, p=0.8):
+    raise NotImplementedError
+
+
 # Main
 if __name__ == '__main__':
 
