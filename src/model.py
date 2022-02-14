@@ -27,7 +27,7 @@ class MultiLabelClassifier(nn.Module):
     # Predict
     def forward(self, x):
         # Pass prediction output to sigmoid layer
-        return self.sigmoid(self.out)
+        return self.sigmoid(self.out(x))
 
     @property
     def device(self):
@@ -62,7 +62,7 @@ def train(model, data, optimizer, loss_fn):
         loss = loss_fn(predicted, tokens.type(torch.float))
         # Update parameters
         loss.backward()
-        optimizer.backward()
+        optimizer.step()
         # Yield batch loss
         yield loss.item()
 
@@ -80,6 +80,8 @@ def test(model, data, loss_fn, eval_fn):
     model.eval()
     # Define model device
     device = model.device
+    # Define default device
+    cpu = torch.device('cpu')
     # Disable gradient computation
     with torch.no_grad():
         # Loop through each batch in test dataset
@@ -87,12 +89,12 @@ def test(model, data, loss_fn, eval_fn):
             # Retrieve input images and true tokens
             images, tokens = batch['image'], batch['tokens']
             # Move both images and tokens on device
-            images, tokens = images.to(device), tokens.to(device)
+            images, tokens = images.to(device), tokens.type(torch.float).to(device)
             # Make predictions
             predicted = model(images)
             # Evaluate loss
-            loss = loss_fn(predicted).item()
-            eval = eval_fn(predicted, tokens)
+            loss = loss_fn(predicted, tokens).item()
+            eval = eval_fn(predicted.to(cpu), tokens.to(cpu))
         # Yield results of both loss and evaluation function
         yield loss, eval
 

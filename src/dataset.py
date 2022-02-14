@@ -1,6 +1,7 @@
 # Dependencies
-import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+import torch
 from PIL import Image
 import numpy as np
 import json
@@ -31,8 +32,18 @@ class FashionDataset(Dataset):
         with open(tokens_json, 'r') as tokens_file:
             # Load object mapping image to tokens
             self.tokens = json.load(tokens_file)
-            # Define index
-            self.index = list(self.tokens.keys())
+            # Initialize index (keep only if image exists)
+            self.index = []
+            # Loop through each key in given tokens
+            for key in self.tokens.keys():
+                # Define path to image
+                image_path = os.path.join(self.images_dir, '%s.jpg' % key)
+                # Case associated image does not exist
+                if not os.path.isfile(image_path):
+                    # Then, skip iteration
+                    continue
+                # Otherwise, update index
+                self.index.append(key)
         # Open vocabulary JSON file
         with open(vocabulary_json, 'r') as vocabulary_file:
             # Load dataframe mapping token to index
@@ -51,7 +62,10 @@ class FashionDataset(Dataset):
         # Load image from folder
         image = Image.open(os.path.join(self.images_dir, '%s.jpg' % index))
         # Cast image to numpy array (and normalize between 0,1
-        image = np.asarray(image, dtype=int) / 255
+        image = np.asarray(image.convert('RGB'), dtype=int) / 255
+        # # Debug
+        # if image.shape != (80, 60, 3):
+        #     raise Exception('Shape %s does not match expected' % str(image.shape))
         # Define tokens list and vocabulary
         tokens, vocabulary = self.tokens[index], self.vocabulary
         # Initialize tokens vector
@@ -67,7 +81,7 @@ class FashionDataset(Dataset):
 
 
 class ToTensor(object):
-    """Convert ndarrays in sample to Tensors."""
+    """ Convert ndarrays in sample to Tensors. """
 
     def __call__(self, sample):
         # Unpack image and tokens
@@ -75,7 +89,27 @@ class ToTensor(object):
         # Swap color axis (H x W x C -> C x H x W)
         image = image.transpose((2, 0, 1))
         #  Pass results on
-        return {'image': torch.from_numpy(image), 'tokens': torch.from_numpy(tokens)}
+        return {'image': torch.from_numpy(image).type(torch.float), 'tokens': torch.from_numpy(tokens)}
+
+
+class Resize(object):
+    """ Resizes images in sample to target size. """
+
+    def __init__(self, size):
+        # Call parent constructor
+        super().__init__()
+        # Store target shape
+        self.size = size
+        # Store target transformation
+        self.resize = transforms.Resize(size=size)
+
+    def __call__(self, sample):
+        # Retrieve image and tokens from sample
+        image, tokens = sample['image'], sample['tokens']
+        # Resize image
+        image = self.resize(image)
+        # Return updated sample
+        return {'image': image, 'tokens': tokens}
 
 
 def train_test_split(data, p=0.8):
